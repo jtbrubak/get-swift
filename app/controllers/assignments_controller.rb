@@ -14,33 +14,30 @@ class AssignmentsController < ApplicationController
 
   private
   def populate_drones
-    drones = []
-    JSON.parse(Net::HTTP.get(URI('https://codetest.kube.getswift.co/drones'))).each do |drone|
+    drones = JSON.parse(Net::HTTP.get(URI('https://codetest.kube.getswift.co/drones')))
+    drones.each do |drone|
       distance_to_return = 0
       drone_location = [drone['location']['latitude'], drone['location']['longitude']]
-      drone_destination = drone['packages'].empty? ? nil :
-        [drone['packages'][0]['destination']['latitude'],
-         drone['packages'][0]['destination']['longitude']]
-      if drone_destination.nil?
+      if drone['packages'].empty?
         distance_to_return += distance_from_hub(drone_location)
       else
+        drone_destination = [drone['packages'][0]['destination']['latitude'],
+           drone['packages'][0]['destination']['longitude']]
         distance_to_return += distance_from_hub(drone_destination)
         distance_to_return += distance_between_points(drone_location, drone_destination)
       end
-      drone['time_to_return'] = (3600 * distance_to_return) / 20
-      drones.push(drone)
+      drone['time_to_return'] = (3600 * distance_to_return) / 50
     end
     drones
   end
 
   def populate_packages
-    packages = []
-    JSON.parse(Net::HTTP.get(URI('https://codetest.kube.getswift.co/packages'))).each do |package|
+    packages = JSON.parse(Net::HTTP.get(URI('https://codetest.kube.getswift.co/packages')))
+    packages.each do |package|
       package['secs_until_deadline'] = package['deadline'] - Time.now.to_i
       distance_to_destination = distance_from_hub(
         [package['destination']['latitude'], package['destination']['longitude']])
-      package['time_to_destination'] = (3600 * distance_to_destination) / 20
-      packages.push(package)
+      package['time_to_destination'] = (3600 * distance_to_destination) / 50
     end
     packages
   end
@@ -48,7 +45,7 @@ class AssignmentsController < ApplicationController
   def assign_jobs(packages, drones)
     assigned_jobs = { 'assignments' => [], 'unassignedPackageIds' => [] }
     until packages.empty?
-      if packages.first['time_to_destination'] + drones.first['time_to_return'] > packages.first['secs_until_deadline']
+      if drones.empty? || packages.first['time_to_destination'] + drones.first['time_to_return'] > packages.first['secs_until_deadline']
         assigned_jobs['unassignedPackageIds'].push(packages.first['packageId'])
       else
         assigned_jobs['assignments'].push({ droneId: drones.first['droneId'], packageId: packages.first['packageId']})
